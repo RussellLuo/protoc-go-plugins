@@ -6,7 +6,7 @@
 $ go get google.golang.org/grpc
 ```
 
-See [here] for more details.
+See [here][1] for more details.
 
 ## Generate the HTTP service code
 
