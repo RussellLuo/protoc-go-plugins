@@ -49,7 +49,7 @@ $ vi greeter_server/main.go
             h := http.NewServer(&server{})
             go func() {
                     if err := h.Serve(httpPort); err != nil {
-                            log.Fatalf("failed to start HTTP server listening: %v", err)
+                            log.Fatalf("failed to start the HTTP server: %v", err)
                     }
             }()
 
