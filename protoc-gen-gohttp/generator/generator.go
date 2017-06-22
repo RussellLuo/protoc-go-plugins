@@ -33,7 +33,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"%s"
+	pb "%s"
 	context "golang.org/x/net/context"
 )`, g.Param["pb_pkg_path"]))
 }
