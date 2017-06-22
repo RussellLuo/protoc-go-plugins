@@ -2,7 +2,6 @@ package generator
 
 import (
 	"fmt"
-	"path"
 
 	"github.com/RussellLuo/protoc-go-plugins/base"
 	"github.com/golang/protobuf/proto"
@@ -20,16 +19,7 @@ func New() *generator {
 }
 
 func (g *generator) goFileName(protoName *string) string {
-	name := *protoName
-	if ext := path.Ext(name); ext == ".proto" || ext == ".protodevel" {
-		name = name[:len(name)-len(ext)]
-	}
-	name += ".http.go"
-	return name
-}
-
-func (g *generator) httpServiceName(serviceName string) string {
-	return serviceName + "HTTP"
+	return g.ProtoFileBaseName(*protoName) + ".http.go"
 }
 
 func (g *generator) generateImports() {
@@ -52,8 +42,8 @@ func (g *generator) generateMethodInterface() {
 }
 
 func (g *generator) generateMakeHandlerFunc() {
-	g.P()
-	g.P(`func MakeHandler(method Method, in interface{}) http.HandlerFunc {
+	g.P(`
+func MakeHandler(method Method, in interface{}) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(in); err != nil {
@@ -79,7 +69,7 @@ func (g *generator) generateMakeHandlerFunc() {
 }`)
 }
 
-func (g *generator) generateHTTPService(serviceName string, methods []*google_protobuf.MethodDescriptorProto) {
+func (g *generator) generateService(serviceName string, methods []*google_protobuf.MethodDescriptorProto) {
 	g.generateStructure(serviceName)
 	g.generateNewFunc(serviceName)
 	g.generateHandlerMapMethod(serviceName, methods)
@@ -88,7 +78,7 @@ func (g *generator) generateHTTPService(serviceName string, methods []*google_pr
 
 func (g *generator) generateStructure(serviceName string) {
 	g.P()
-	g.P("type ", g.httpServiceName(serviceName), " struct {")
+	g.P("type ", serviceName, " struct {")
 	g.In()
 	g.P("srv pb.", serviceName, "Server")
 	g.Out()
@@ -96,18 +86,19 @@ func (g *generator) generateStructure(serviceName string) {
 }
 
 func (g *generator) generateNewFunc(serviceName string) {
-	httpServiceName := g.httpServiceName(serviceName)
 	g.P()
-	g.P("func New", httpServiceName, "(srv pb.", serviceName, "Server) *", httpServiceName, " {")
+	g.P("func New", serviceName, "(srv pb.", serviceName, "Server) *", serviceName, " {")
 	g.In()
-	g.P("return &", httpServiceName, "{srv: srv}")
+	g.P("return &", serviceName, "{srv: srv}")
 	g.Out()
 	g.P("}")
 }
 
 func (g *generator) generateHandlerMapMethod(serviceName string, methods []*google_protobuf.MethodDescriptorProto) {
+	receiverName := g.ReceiverName(serviceName)
+
 	g.P()
-	g.P("func (h *", g.httpServiceName(serviceName), ") HandlerMap() map[string]http.HandlerFunc {")
+	g.P("func (", receiverName, " *", serviceName, ") HandlerMap() map[string]http.HandlerFunc {")
 	g.In()
 	g.P("m := make(map[string]http.HandlerFunc)")
 
@@ -115,7 +106,7 @@ func (g *generator) generateHandlerMapMethod(serviceName string, methods []*goog
 		inputTypeName := g.TypeName(method.GetInputType())
 		methodName := method.GetName()
 		pattern := fmt.Sprintf("/%s/%s", g.Underscore(serviceName), g.Underscore(methodName))
-		g.P(`m["`, pattern, `"] = `, "MakeHandler(h.", methodName, ", new(pb.", inputTypeName, "))")
+		g.P(`m["`, pattern, `"] = `, "MakeHandler(", receiverName, ".", methodName, ", new(pb.", inputTypeName, "))")
 	}
 
 	g.P("return m")
@@ -124,12 +115,14 @@ func (g *generator) generateHandlerMapMethod(serviceName string, methods []*goog
 }
 
 func (g *generator) generateWrapperMethods(serviceName string, methods []*google_protobuf.MethodDescriptorProto) {
+	receiverName := g.ReceiverName(serviceName)
+
 	for _, method := range methods {
 		inputTypeName := g.TypeName(method.GetInputType())
 		g.P()
-		g.P("func (h *", g.httpServiceName(serviceName), ") ", method.Name, "(ctx context.Context, in interface{}) (interface{}, error) {")
+		g.P("func (", receiverName, " *", serviceName, ") ", method.Name, "(ctx context.Context, in interface{}) (interface{}, error) {")
 		g.In()
-		g.P("return h.srv.", method.Name, "(ctx, in.(*pb.", inputTypeName, "))")
+		g.P("return ", receiverName, ".srv.", method.Name, "(ctx, in.(*pb.", inputTypeName, "))")
 		g.Out()
 		g.P("}")
 	}
@@ -149,7 +142,7 @@ func (g *generator) Make(protoFile *google_protobuf.FileDescriptorProto) (*plugi
 	g.generateMakeHandlerFunc()
 	for _, service := range protoFile.Service {
 		serviceName := gen.CamelCase(service.GetName())
-		g.generateHTTPService(serviceName, service.Method)
+		g.generateService(serviceName, service.Method)
 	}
 	file := &plugin.CodeGeneratorResponse_File{
 		Name:    proto.String(g.goFileName(protoFile.Name)),

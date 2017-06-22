@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"path"
 	"regexp"
 	"strings"
 
@@ -133,6 +134,20 @@ func (g *Generator) Underscore(s string) string {
 		}
 	}
 	return strings.ToLower(strings.Join(a, "_"))
+}
+
+func (g *Generator) ProtoFileBaseName(name string) string {
+	if ext := path.Ext(name); ext == ".proto" || ext == ".protodevel" {
+		name = name[:len(name)-len(ext)]
+	}
+	return name
+}
+
+func (g *Generator) ReceiverName(typeName string) string {
+	if typeName == "" {
+		return ""
+	}
+	return string([]rune(g.Underscore(typeName))[0])
 }
 
 func (g *Generator) generate(maker fileMaker, request *plugin.CodeGeneratorRequest) (*plugin.CodeGeneratorResponse, error) {
