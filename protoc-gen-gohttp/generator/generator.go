@@ -2,6 +2,7 @@ package generator
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/RussellLuo/protoc-go-plugins/base"
 	"github.com/golang/protobuf/proto"
@@ -22,18 +23,19 @@ func (g *generator) goFileName(protoName *string) string {
 	return g.ProtoFileBaseName(*protoName) + ".http.go"
 }
 
-func (g *generator) generateImports() {
+func (g *generator) generatePackageName() {
 	g.P("package http")
-	g.P()
-	g.P("import (")
-	g.In()
-	g.P(`"encoding/json"`)
-	g.P(`"net/http"`)
-	g.P()
-	g.P(`"`, g.Param["pb_pkg_path"], `"`)
-	g.P(`context "golang.org/x/net/context"`)
-	g.Out()
-	g.P(")")
+}
+
+func (g *generator) generateImports() {
+	g.P(fmt.Sprintf(`
+import (
+	"encoding/json"
+	"net/http"
+
+	"%s"
+	context "golang.org/x/net/context"
+)`, g.Param["pb_pkg_path"]))
 }
 
 func (g *generator) generateMethodInterface() {
@@ -45,6 +47,11 @@ func (g *generator) generateMakeHandlerFunc() {
 	g.P(`
 func MakeHandler(method Method, in interface{}) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(in); err != nil {
 			w.WriteHeader(http.StatusBadRequest)
@@ -70,13 +77,13 @@ func MakeHandler(method Method, in interface{}) http.HandlerFunc {
 }
 
 func (g *generator) generateService(serviceName string, methods []*google_protobuf.MethodDescriptorProto) {
-	g.generateStructure(serviceName)
-	g.generateNewFunc(serviceName)
-	g.generateHandlerMapMethod(serviceName, methods)
-	g.generateWrapperMethods(serviceName, methods)
+	g.genServiceStructure(serviceName)
+	g.genServiceNewFunc(serviceName)
+	g.genServiceHandlerMapMethod(serviceName, methods)
+	g.genServiceWrapperMethods(serviceName, methods)
 }
 
-func (g *generator) generateStructure(serviceName string) {
+func (g *generator) genServiceStructure(serviceName string) {
 	g.P()
 	g.P("type ", serviceName, " struct {")
 	g.In()
@@ -85,7 +92,7 @@ func (g *generator) generateStructure(serviceName string) {
 	g.P("}")
 }
 
-func (g *generator) generateNewFunc(serviceName string) {
+func (g *generator) genServiceNewFunc(serviceName string) {
 	g.P()
 	g.P("func New", serviceName, "(srv pb.", serviceName, "Server) *", serviceName, " {")
 	g.In()
@@ -94,7 +101,7 @@ func (g *generator) generateNewFunc(serviceName string) {
 	g.P("}")
 }
 
-func (g *generator) generateHandlerMapMethod(serviceName string, methods []*google_protobuf.MethodDescriptorProto) {
+func (g *generator) genServiceHandlerMapMethod(serviceName string, methods []*google_protobuf.MethodDescriptorProto) {
 	receiverName := g.ReceiverName(serviceName)
 
 	g.P()
@@ -114,7 +121,7 @@ func (g *generator) generateHandlerMapMethod(serviceName string, methods []*goog
 	g.P("}")
 }
 
-func (g *generator) generateWrapperMethods(serviceName string, methods []*google_protobuf.MethodDescriptorProto) {
+func (g *generator) genServiceWrapperMethods(serviceName string, methods []*google_protobuf.MethodDescriptorProto) {
 	receiverName := g.ReceiverName(serviceName)
 
 	for _, method := range methods {
@@ -128,6 +135,51 @@ func (g *generator) generateWrapperMethods(serviceName string, methods []*google
 	}
 }
 
+func (g *generator) generateServer(serviceNames []string) {
+	g.genServerStructure()
+	g.genServerNewFunc(serviceNames)
+	g.genServerServeMethod()
+}
+
+func (g *generator) genServerStructure() {
+	g.P(`
+type Server struct {
+	mux *http.ServeMux
+}`)
+}
+
+func (g *generator) genServerNewFunc(serviceNames []string) {
+	g.P()
+
+	args := make([]string, len(serviceNames))
+	for i, serviceName := range serviceNames {
+		args[i] = fmt.Sprintf("srv%s pb.%sServer", serviceName, serviceName)
+	}
+	g.P("func NewServer(", strings.Join(args, ", "), ") *Server {")
+
+	g.In()
+	g.P("mux := http.NewServeMux()")
+
+	for _, serviceName := range serviceNames {
+		g.P("for pattern, handler := range New", serviceName, "(srv", serviceName, ").HandlerMap() {")
+		g.In()
+		g.P("mux.Handle(pattern, handler)")
+		g.Out()
+		g.P("}")
+	}
+
+	g.P("return &Server{mux: mux}")
+	g.Out()
+	g.P("}")
+}
+
+func (g *generator) genServerServeMethod() {
+	g.P(`
+func (s *Server) Serve(addr string) error {
+	return http.ListenAndServe(addr, s.mux)
+}`)
+}
+
 func (g *generator) validateParameters() {
 	if _, ok := g.Param["pb_pkg_path"]; !ok {
 		g.Fail("parameter `pb_pkg_path` is required (e.g. --gohttp_out=pb_pkg_path=<pb package path>:<proto file path>)")
@@ -137,13 +189,19 @@ func (g *generator) validateParameters() {
 func (g *generator) Make(protoFile *google_protobuf.FileDescriptorProto) (*plugin.CodeGeneratorResponse_File, error) {
 	g.validateParameters()
 
+	g.generatePackageName()
 	g.generateImports()
 	g.generateMethodInterface()
 	g.generateMakeHandlerFunc()
-	for _, service := range protoFile.Service {
-		serviceName := gen.CamelCase(service.GetName())
-		g.generateService(serviceName, service.Method)
+
+	serviceNames := make([]string, len(protoFile.Service))
+	for i, service := range protoFile.Service {
+		serviceNames[i] = gen.CamelCase(service.GetName())
+		g.generateService(serviceNames[i], service.Method)
 	}
+
+	g.generateServer(serviceNames)
+
 	file := &plugin.CodeGeneratorResponse_File{
 		Name:    proto.String(g.goFileName(protoFile.Name)),
 		Content: proto.String(g.String()),
