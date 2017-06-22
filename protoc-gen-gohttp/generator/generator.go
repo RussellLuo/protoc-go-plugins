@@ -182,7 +182,7 @@ func (s *Server) Serve(addr string) error {
 
 func (g *generator) validateParameters() {
 	if _, ok := g.Param["pb_pkg_path"]; !ok {
-		g.Fail("parameter `pb_pkg_path` is required (e.g. --gohttp_out=pb_pkg_path=<pb package path>:<proto file path>)")
+		g.Fail("parameter `pb_pkg_path` is required (e.g. --gohttp_out=pb_pkg_path=<pb package path>:<output path>)")
 	}
 }
 
