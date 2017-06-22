@@ -16,7 +16,7 @@ See [gRPC Go Quickstart][1] for installation instructions.
 
 ### protoc-gen-gohttp
 
-Expose your gPRC services as HTTP services.
+Expose your gRPC services as HTTP services.
 
 #### Installation
 
