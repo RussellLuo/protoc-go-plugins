@@ -16,6 +16,8 @@ $ protoc helloworld/helloworld.proto --gohttp_out=pb_pkg_path=google.golang.org/
 $ mv greeter_server/helloworld greeter_server/http
 ```
 
+For those who want to preview the final generated code, see the pre-generated file [helloworld.http.go](helloworld.http.go).
+
 ## Update the existing gRPC server code
 
 ```bash
