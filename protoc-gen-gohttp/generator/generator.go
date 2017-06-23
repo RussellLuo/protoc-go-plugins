@@ -30,30 +30,38 @@ func (g *generator) generatePackageName() {
 func (g *generator) generateImports() {
 	g.P(fmt.Sprintf(`
 import (
-	"encoding/json"
 	"net/http"
 
+	"github.com/golang/protobuf/jsonpb"
+	"github.com/golang/protobuf/proto"
 	context "golang.org/x/net/context"
 	pb "%s"
 )`, g.Param["pb_pkg_path"]))
 }
 
+func (g *generator) generateVariables() {
+	g.P(`
+var (
+	marshaler   = &jsonpb.Marshaler{EnumsAsInts: true, EmitDefaults: true}
+	unmarshaler = &jsonpb.Unmarshaler{}
+)`)
+}
+
 func (g *generator) generateMethodInterface() {
 	g.P()
-	g.P("type Method func(context.Context, interface{}) (interface{}, error)")
+	g.P("type Method func(context.Context, proto.Message) (proto.Message, error)")
 }
 
 func (g *generator) generateMakeHandlerFunc() {
 	g.P(`
-func MakeHandler(method Method, in interface{}) http.HandlerFunc {
+func MakeHandler(method Method, in proto.Message) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "POST" {
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			return
 		}
 
-		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(in); err != nil {
+		if err := unmarshaler.Unmarshal(r.Body, in); err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
@@ -64,14 +72,12 @@ func MakeHandler(method Method, in interface{}) http.HandlerFunc {
 			return
 		}
 
-		bytes, err := json.Marshal(out)
-		if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		if err := marshaler.Marshal(w, out); err != nil {
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.Write(bytes)
 	}
 }`)
 }
@@ -127,7 +133,7 @@ func (g *generator) genServiceWrapperMethods(serviceName string, methods []*goog
 	for _, method := range methods {
 		inputTypeName := g.TypeName(method.GetInputType())
 		g.P()
-		g.P("func (", receiverName, " *", serviceName, ") ", method.Name, "(ctx context.Context, in interface{}) (interface{}, error) {")
+		g.P("func (", receiverName, " *", serviceName, ") ", method.Name, "(ctx context.Context, in proto.Message) (proto.Message, error) {")
 		g.In()
 		g.P("return ", receiverName, ".srv.", method.Name, "(ctx, in.(*pb.", inputTypeName, "))")
 		g.Out()
@@ -191,6 +197,7 @@ func (g *generator) Make(protoFile *google_protobuf.FileDescriptorProto) (*plugi
 
 	g.generatePackageName()
 	g.generateImports()
+	g.generateVariables()
 	g.generateMethodInterface()
 	g.generateMakeHandlerFunc()
 
