@@ -8,7 +8,7 @@ $ go get google.golang.org/grpc
 
 See [here][1] for more details.
 
-## Generate the HTTP service code
+## Generate the HTTP server code
 
 ```bash
 $ cd $GOPATH/src/google.golang.org/grpc/examples/helloworld
@@ -16,7 +16,7 @@ $ protoc helloworld/helloworld.proto --gohttp_out=pb_pkg_path=google.golang.org/
 $ mv greeter_server/helloworld greeter_server/http
 ```
 
-## Update the original gRPC server code
+## Update the existing gRPC server code
 
 ```bash
 $ cd $GOPATH/src/google.golang.org/grpc/examples/helloworld
