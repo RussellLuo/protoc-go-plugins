@@ -30,6 +30,7 @@ func (g *generator) generatePackageName() {
 func (g *generator) generateImports() {
 	g.P(fmt.Sprintf(`
 import (
+	"io"
 	"net/http"
 
 	"github.com/golang/protobuf/jsonpb"
@@ -62,8 +63,10 @@ func MakeHandler(method Method, in proto.Message) http.HandlerFunc {
 		}
 
 		if err := unmarshaler.Unmarshal(r.Body, in); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			return
+			if err != io.EOF {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
 		}
 
 		out, err := method(nil, in)
