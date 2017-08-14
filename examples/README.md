@@ -1,6 +1,14 @@
 # Hello World Example
 
-## Download the example
+## Prerequisites
+
+### Install cmux
+
+```bash
+$ go get github.com/soheilhy/cmux
+```
+
+### Download the example
 
 ```bash
 $ go get google.golang.org/grpc
@@ -25,37 +33,48 @@ $ cd $GOPATH/src/google.golang.org/grpc/examples/helloworld
 $ vi greeter_server/main.go
 ```
 
-1. Add the following import:
+1. Add the following imports:
 
     ```go
     import (
-        ...
-        "google.golang.org/grpc/examples/helloworld/greeter_server/http"
-        ...
+    	...
+    	"github.com/soheilhy/cmux"
+    	"google.golang.org/grpc/examples/helloworld/greeter_server/http"
+    	...
     )
     ```
 
-2. Add the following constant variable:
-
-    ```go
-    const (
-            ...
-            httpPort = ":50052"
-    )
-    ```
-
-3. Add the following code at the start of `main()`:
+2. Change the function `main()` as follows:
 
     ```go
     func main() {
-            h := http.NewServer(&server{})
-            go func() {
-                    if err := h.Serve(httpPort); err != nil {
-                            log.Fatalf("failed to start the HTTP server: %v", err)
-                    }
-            }()
+    	lis, err := net.Listen("tcp", port)
+    	if err != nil {
+    		log.Fatalf("failed to listen: %v", err)
+    	}
 
-            ...
+    	m := cmux.New(lis)
+    	httpL := m.Match(cmux.HTTP1())
+    	grpcL := m.Match(cmux.Any())
+
+    	httpS := http.NewServer(&server{})
+    	go func() {
+    		if err := httpS.Serve(httpL); err != nil {
+    			log.Fatalf("failed to start HTTP server listening: %v", err)
+    		}
+    	}()
+
+    	grpcS := grpc.NewServer()
+    	pb.RegisterGreeterServer(grpcS, &server{})
+    	// Register reflection service on gRPC server.
+    	reflection.Register(grpcS)
+    	go func() {
+    		if err := grpcS.Serve(grpcL); err != nil {
+    			log.Fatalf("failed to serve: %v", err)
+    		}
+    	}()
+
+    	m.Serve()
     }
     ```
 
@@ -71,13 +90,13 @@ $ go run greeter_server/main.go
 By cURL:
 
 ```bash
-$ curl -i -H 'Content-Type: application/json' -XPOST http://localhost:50052/greeter/say_hello -d '{"name": "world"}'
+$ curl -i -H 'Content-Type: application/json' -XPOST http://localhost:50051/greeter/say_hello -d '{"name": "world"}'
 ```
 
 Or by [HTTPie][2]:
 
 ```bash
-$ http post http://localhost:50052/greeter/say_hello name=world
+$ http post http://localhost:50051/greeter/say_hello name=world
 ```
 
 

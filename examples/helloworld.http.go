@@ -2,6 +2,7 @@ package http
 
 import (
 	"io"
+	"net"
 	"net/http"
 
 	"github.com/golang/protobuf/jsonpb"
@@ -76,6 +77,7 @@ func NewServer(srvGreeter pb.GreeterServer) *Server {
 	return &Server{mux: mux}
 }
 
-func (s *Server) Serve(addr string) error {
-	return http.ListenAndServe(addr, s.mux)
+func (s *Server) Serve(l net.Listener) error {
+	server := &http.Server{Handler: s.mux}
+	return server.Serve(l)
 }
