@@ -31,6 +31,7 @@ func (g *generator) generateImports() {
 	g.P(fmt.Sprintf(`
 import (
 	"io"
+	"net"
 	"net/http"
 
 	"github.com/golang/protobuf/jsonpb"
@@ -184,8 +185,9 @@ func (g *generator) genServerNewFunc(serviceNames []string) {
 
 func (g *generator) genServerServeMethod() {
 	g.P(`
-func (s *Server) Serve(addr string) error {
-	return http.ListenAndServe(addr, s.mux)
+func (s *Server) Serve(l net.Listener) error {
+	server := &http.Server{Handler: s.mux}
+	return server.Serve(l)
 }`)
 }
 
