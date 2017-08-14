@@ -39,7 +39,7 @@ As you can see, `pb_pkg_path` is the path of the pb package, which is generated 
 
 #### Examples
 
-See [examples](examples) to find out how to expose a simple gRPC service as an HTTP service.
+See [examples](examples) to find out how to expose a simple gRPC service as an HTTP service on the same port.
 
 
 ## License

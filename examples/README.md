@@ -57,7 +57,9 @@ $ vi greeter_server/main.go
     	httpL := m.Match(cmux.HTTP1())
     	grpcL := m.Match(cmux.Any())
 
-    	httpS := http.NewServer(&server{})
+    	srv := &server{}
+
+    	httpS := http.NewServer(srv)
     	go func() {
     		if err := httpS.Serve(httpL); err != nil {
     			log.Fatalf("failed to start HTTP server listening: %v", err)
@@ -65,7 +67,7 @@ $ vi greeter_server/main.go
     	}()
 
     	grpcS := grpc.NewServer()
-    	pb.RegisterGreeterServer(grpcS, &server{})
+    	pb.RegisterGreeterServer(grpcS, srv)
     	// Register reflection service on gRPC server.
     	reflection.Register(grpcS)
     	go func() {
