@@ -54,12 +54,12 @@ $ vi greeter_server/main.go
     	}
 
     	m := cmux.New(lis)
-      // Using MatchWithWriters/SendSettings is a major performance hit (around 15%).
-      // Per the cmux documentation, you have to do this for grpc-java.
-      // If only using golang, you don't need this, but probably not
-      // great to assume what the calling languages are.
-      grpcL := m.MatchWithWriters(cmux.HTTP2MatchHeaderFieldPrefixSendSettings("content-type", "application/grpc"))
-      httpL := m.Match(cmux.Any())
+    	// Using MatchWithWriters/SendSettings is a major performance hit (around 15%).
+    	// Per the cmux documentation, you have to do this for grpc-java.
+    	// If only using golang, you don't need this, but probably not
+    	// great to assume what the calling languages are.
+    	grpcL := m.MatchWithWriters(cmux.HTTP2MatchHeaderFieldPrefixSendSettings("content-type", "application/grpc"))
+    	httpL := m.Match(cmux.Any())
 
     	srv := &server{}
 
