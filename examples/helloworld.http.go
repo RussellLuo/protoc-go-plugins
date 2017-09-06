@@ -8,6 +8,7 @@ import (
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/proto"
 	context "golang.org/x/net/context"
+	"google.golang.org/grpc"
 	pb "google.golang.org/grpc/examples/helloworld/helloworld"
 )
 
@@ -48,11 +49,12 @@ func MakeHandler(method Method, in proto.Message) http.HandlerFunc {
 }
 
 type Greeter struct {
-	srv pb.GreeterServer
+	srv         pb.GreeterServer
+	interceptor grpc.UnaryServerInterceptor
 }
 
-func NewGreeter(srv pb.GreeterServer) *Greeter {
-	return &Greeter{srv: srv}
+func NewGreeter(srv pb.GreeterServer, interceptor grpc.UnaryServerInterceptor) *Greeter {
+	return &Greeter{srv: srv, interceptor: interceptor}
 }
 
 func (g *Greeter) HandlerMap() map[string]http.HandlerFunc {
@@ -62,19 +64,48 @@ func (g *Greeter) HandlerMap() map[string]http.HandlerFunc {
 }
 
 func (g *Greeter) SayHello(ctx context.Context, in proto.Message) (proto.Message, error) {
-	return g.srv.SayHello(ctx, in.(*pb.HelloRequest))
+	if g.interceptor == nil {
+		return g.srv.SayHello(ctx, in.(*pb.HelloRequest))
+	}
+	out, err := g.interceptor(
+		ctx,
+		in.(*pb.HelloRequest),
+		&grpc.UnaryServerInfo{
+			Server:     g.srv,
+			FullMethod: "/helloworld.Greeter/SayHello",
+		},
+		func(ctx context.Context, req interface{}) (interface{}, error) {
+			return g.srv.SayHello(ctx, req.(*pb.HelloRequest))
+		},
+	)
+	return out.(*pb.HelloReply), err
 }
 
 type Server struct {
-	mux *http.ServeMux
+	mux         *http.ServeMux
+	interceptor grpc.UnaryServerInterceptor
 }
 
-func NewServer(srvGreeter pb.GreeterServer) *Server {
-	mux := http.NewServeMux()
-	for pattern, handler := range NewGreeter(srvGreeter).HandlerMap() {
-		mux.Handle(pattern, handler)
+func NewServer(interceptors ...grpc.UnaryServerInterceptor) *Server {
+	var interceptor grpc.UnaryServerInterceptor
+	switch len(interceptors) {
+	case 0:
+	case 1:
+		interceptor = interceptors[0]
+	default:
+		panic("At most one unary server interceptor can be set.")
 	}
-	return &Server{mux: mux}
+
+	return &Server{
+		mux:         http.NewServeMux(),
+		interceptor: interceptor,
+	}
+}
+
+func (s *Server) RegisterGreeterServer(srvGreeter pb.GreeterServer) {
+	for pattern, handler := range NewGreeter(srvGreeter, s.interceptor).HandlerMap() {
+		s.mux.Handle(pattern, handler)
+	}
 }
 
 func (s *Server) Serve(l net.Listener) error {

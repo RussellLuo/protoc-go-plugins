@@ -5,7 +5,7 @@
 ### Install cmux
 
 ```bash
-$ go get github.com/soheilhy/cmux
+$ go get -u github.com/soheilhy/cmux
 ```
 
 ### Download the example
@@ -63,7 +63,9 @@ $ vi greeter_server/main.go
 
     	srv := &server{}
 
-    	httpS := http.NewServer(srv)
+    	// You can also set an unary server interceptor here
+    	httpS := http.NewServer()
+    	httpS.RegisterGreeterServer(srv)
     	go func() {
     		if err := httpS.Serve(httpL); err != nil {
     			log.Fatalf("failed to start HTTP server listening: %v", err)
