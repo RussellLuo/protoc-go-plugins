@@ -64,6 +64,8 @@ $ vi greeter_server/main.go
     	srv := &server{}
 
     	// You can also set an unary server interceptor here
+    	// For example:
+    	//     httpS := http.NewServer(anUnaryServerInterceptor)
     	httpS := http.NewServer()
     	httpS.RegisterGreeterServer(srv)
     	go func() {
