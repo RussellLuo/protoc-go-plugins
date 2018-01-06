@@ -160,7 +160,7 @@ func (g *generator) genServiceWrapperMethods(fullServiceName, serviceName string
 		g.P("},")
 		g.P("func(ctx context.Context, req interface{}) (interface{}, error) {")
 		g.In()
-		g.P("return g.srv.SayHello(ctx, req.(", inputTypeName, "))")
+		g.P("return ", receiverName, ".srv.", method.Name, "(ctx, req.(", inputTypeName, "))")
 		g.Out()
 		g.P("},")
 		g.Out()
