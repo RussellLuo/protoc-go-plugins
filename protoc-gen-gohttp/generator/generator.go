@@ -37,6 +37,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	context "golang.org/x/net/context"
 	"google.golang.org/grpc"
+
 	pb "%s"
 )`, g.Param["pb_pkg_path"]))
 }
